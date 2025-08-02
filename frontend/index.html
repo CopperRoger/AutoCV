@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AutoCV Generator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>AutoCV Generator</h1>
+
+  <form id="cvForm">
+    <label for="resume">Paste your Resume:</label><br />
+    <textarea id="resume" rows="8" cols="60" required></textarea><br /><br />
+
+    <label for="jobDesc">Paste the Job Description:</label><br />
+    <textarea id="jobDesc" rows="8" cols="60" required></textarea><br /><br />
+
+    <button type="submit">Generate</button>
+  </form>
+
+  <div id="output" style="margin-top: 2em;"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
