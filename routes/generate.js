@@ -32,7 +32,7 @@ router.post('/', upload.single('resume'), async (req, res) => {
     const prompt = buildPrompt(resumeText, jobDescription);
 
     const model = genAI.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 4096,

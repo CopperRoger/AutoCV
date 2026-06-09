@@ -16,7 +16,7 @@ app.use(express.static(path.join(__dirname, 'frontend')));
 app.use('/generate', generateRoute);
 
 // Fallback to index.html for any unmatched route
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
   res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
 });
 
