@@ -8,15 +8,11 @@ const upload = multer({ storage: multer.memoryStorage() });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // POST /generate
-// Accepts either:
-//   - JSON body: { resumeText, jobDescription }
-//   - multipart/form-data: { resume (PDF file), jobDescription }
 router.post('/', upload.single('resume'), async (req, res) => {
   try {
     let resumeText = '';
 
     if (req.file) {
-      // PDF upload — extract text
       const parsed = await pdfParse(req.file.buffer);
       resumeText = parsed.text;
     } else {
@@ -42,7 +38,6 @@ router.post('/', upload.single('resume'), async (req, res) => {
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
-    // Strip markdown fences if present
     const jsonStr = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim();
     const parsed = JSON.parse(jsonStr);
 
@@ -58,8 +53,7 @@ function buildPrompt(resumeText, jobDescription) {
     ? `\nJob Description (tailor the resume toward this role):\n${jobDescription}`
     : '\n(No job description provided — enhance the resume generally.)';
 
-  return `
-You are an expert resume writer. Your job is to:
+  return `You are an expert resume writer. Your job is to:
 1. Parse the provided resume into structured sections.
 2. Enhance it — rewrite bullet points to be concise and impactful using strong action verbs, quantify achievements where possible, and write a polished professional summary.
 ${jobDescription.trim() ? '3. Tailor the content to match the job description keywords and requirements.' : ''}
@@ -68,7 +62,8 @@ Resume:
 ${resumeText}
 ${jdSection}
 
-Return ONLY a valid JSON object (no markdown, no explanation) with this exact structure:
+Return ONLY a valid JSON object with this exact structure:
+
 {
   "name": "Full Name",
   "email": "email@example.com",
@@ -76,19 +71,21 @@ Return ONLY a valid JSON object (no markdown, no explanation) with this exact st
   "linkedin": "LinkedIn URL or empty string",
   "github": "GitHub URL or empty string",
   "summary": "2-3 sentence professional summary",
-  "skills": ["skill1", "skill2", "..."],
+  "skills": ["skill1", "skill2"],
   "experience": [
     {
       "company": "Company Name",
       "role": "Job Title",
       "duration": "Month Year – Month Year",
-      "bullets": ["bullet 1", "bullet 2", "bullet 3"]
+      "bullets": ["bullet 1", "bullet 2"]
     }
   ],
   "projects": [
     {
       "name": "Project Name",
       "tech": "Tech stack used",
+      "githubLink": "GitHub URL for this project or empty string",
+      "liveLink": "Live demo URL or empty string",
       "bullets": ["bullet 1", "bullet 2"]
     }
   ],
@@ -97,7 +94,13 @@ Return ONLY a valid JSON object (no markdown, no explanation) with this exact st
       "institution": "University Name",
       "degree": "Degree and Major",
       "duration": "Year – Year",
-      "details": "GPA, honors, or relevant coursework (optional)"
+      "details": "GPA, honors, or relevant coursework"
+    }
+  ],
+  "achievements": [
+    {
+      "title": "Achievement title",
+      "detail": "Score, rank, or short description"
     }
   ],
   "certifications": ["cert1", "cert2"]
@@ -107,9 +110,10 @@ Rules:
 - Keep bullets to 1 line each, starting with a past-tense action verb.
 - Quantify impact wherever the original data allows (%, numbers, scale).
 - If a field is missing from the resume, use an empty string or empty array.
+- For achievements: include competitive programming ratings, rankings, hackathon wins, awards — anything notable that does not fit experience or projects.
+- Preserve ALL URLs exactly as they appear in the resume. Do not modify or drop any links.
 - Do NOT invent information. Only enhance what is already there.
-- Return valid JSON only. No markdown fences, no explanation text.
-`;
+- Return valid JSON only. No markdown fences, no explanation text.`;
 }
 
 module.exports = router;

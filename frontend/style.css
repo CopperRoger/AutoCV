@@ -210,6 +210,32 @@ textarea:focus { outline: none; border-color: var(--accent); }
 [contenteditable="true"]:focus { outline: 2px solid rgba(99, 102, 241, 0.3); background: rgba(99, 102, 241, 0.04); }
 [contenteditable="true"]:empty::before { content: attr(data-placeholder); color: #aaa; font-style: italic; }
 
+/* Achievements */
+.achievement-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.15rem 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 0.88rem;
+}
+.achievement-title { font-weight: 600; }
+.achievement-detail { color: var(--resume-muted); font-size: 0.84rem; }
+
+/* Project links */
+.entry-links { display: flex; gap: 0.6rem; margin-top: 0.1rem; }
+.entry-link {
+  font-size: 0.75rem;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--resume-accent);
+  text-decoration: none;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--resume-accent);
+  border-radius: 3px;
+  opacity: 0.8;
+}
+.entry-link:hover { opacity: 1; background: #eef0ff; }
+
 /* Empty section hiding */
 #sectionCerts:has(li:first-child) { display: block; }
 

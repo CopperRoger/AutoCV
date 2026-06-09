@@ -147,14 +147,42 @@ function renderResume(d) {
   const projContainer = document.getElementById('rProjects');
   projContainer.innerHTML = '';
   (d.projects || []).forEach(proj => {
-    projContainer.appendChild(buildEntry({
+    const entry = buildEntry({
       title: proj.name,
       sub:   proj.tech,
       duration: '',
       bullets: proj.bullets,
-    }));
+      links: [
+        { label: 'GitHub', url: proj.githubLink },
+        { label: 'Live', url: proj.liveLink },
+      ],
+    });
+    projContainer.appendChild(entry);
   });
   toggleSection('sectionProjects', d.projects?.length > 0);
+
+  // Achievements
+  const achContainer = document.getElementById('rAchievements');
+  achContainer.innerHTML = '';
+  (d.achievements || []).forEach(ach => {
+    const div = document.createElement('div');
+    div.className = 'achievement-row';
+
+    const title = document.createElement('span');
+    title.className = 'achievement-title';
+    title.contentEditable = 'true';
+    title.textContent = ach.title || '';
+
+    const detail = document.createElement('span');
+    detail.className = 'achievement-detail';
+    detail.contentEditable = 'true';
+    detail.textContent = ach.detail || '';
+
+    div.appendChild(title);
+    div.appendChild(detail);
+    achContainer.appendChild(div);
+  });
+  toggleSection('sectionAchievements', d.achievements?.length > 0);
 
   // Education
   const eduContainer = document.getElementById('rEducation');
@@ -182,7 +210,7 @@ function renderResume(d) {
   toggleSection('sectionCerts', d.certifications?.length > 0);
 }
 
-function buildEntry({ title, sub, duration, bullets }) {
+function buildEntry({ title, sub, duration, bullets, links = [] }) {
   const div = document.createElement('div');
   div.className = 'entry';
 
@@ -206,6 +234,23 @@ function buildEntry({ title, sub, duration, bullets }) {
   subEl.className = 'entry-sub';
   subEl.contentEditable = 'true';
   subEl.textContent = sub || '';
+
+  // Project links (GitHub / Live)
+  const validLinks = links.filter(l => l.url && l.url.trim());
+  if (validLinks.length > 0) {
+    const linkRow = document.createElement('div');
+    linkRow.className = 'entry-links';
+    validLinks.forEach(l => {
+      const a = document.createElement('a');
+      a.href = l.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.className = 'entry-link';
+      a.textContent = l.label;
+      linkRow.appendChild(a);
+    });
+    header.appendChild(linkRow);
+  }
 
   const ul = document.createElement('ul');
   ul.className = 'bullet-list';
@@ -272,6 +317,12 @@ function buildPlainText(d) {
       lines.push(`${e.degree} — ${e.institution}  (${e.duration})`);
       if (e.details) lines.push('  ' + e.details);
     });
+    lines.push('');
+  }
+
+  if (d.achievements?.length) {
+    lines.push('ACHIEVEMENTS');
+    d.achievements.forEach(a => lines.push(`  • ${a.title} — ${a.detail}`));
     lines.push('');
   }
 
