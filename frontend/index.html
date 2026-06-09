@@ -3,23 +3,100 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>AutoCV Generator</title>
+  <title>AutoCV — AI Resume Enhancer</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <h1>AutoCV Generator</h1>
 
-  <form id="cvForm">
-    <label for="resume">Paste your Resume:</label><br />
-    <textarea id="resume" rows="8" cols="60" required></textarea><br /><br />
+  <!-- INPUT PANEL -->
+  <div id="inputPanel" class="panel">
+    <div class="brand">
+      <h1>AutoCV</h1>
+      <p class="tagline">Paste your resume. Get back a polished one.</p>
+    </div>
 
-    <label for="jobDesc">Paste the Job Description:</label><br />
-    <textarea id="jobDesc" rows="8" cols="60" required></textarea><br /><br />
+    <div class="input-group">
+      <label>Your Resume <span class="hint">(paste text or upload PDF)</span></label>
+      <textarea id="resumeText" rows="14" placeholder="Paste your resume here..."></textarea>
+      <div class="upload-row">
+        <label class="upload-btn" for="resumeFile">📎 Upload PDF instead</label>
+        <input type="file" id="resumeFile" accept=".pdf" />
+        <span id="fileName" class="file-name"></span>
+      </div>
+    </div>
 
-    <button type="submit">Generate</button>
-  </form>
+    <div class="input-group">
+      <label>Job Description <span class="hint">(optional — enables tailoring)</span></label>
+      <textarea id="jobDesc" rows="6" placeholder="Paste the job description here to tailor your resume to the role..."></textarea>
+    </div>
 
-  <div id="output" style="margin-top: 2em;"></div>
+    <button id="generateBtn" class="btn-primary">✨ Enhance Resume</button>
+    <div id="errorMsg" class="error hidden"></div>
+  </div>
+
+  <!-- LOADING STATE -->
+  <div id="loadingPanel" class="panel hidden">
+    <div class="loader-wrap">
+      <div class="spinner"></div>
+      <p id="loadingText">Parsing your resume...</p>
+    </div>
+  </div>
+
+  <!-- RESULT PANEL -->
+  <div id="resultPanel" class="panel hidden">
+    <div class="result-toolbar">
+      <button id="backBtn" class="btn-ghost">← Start Over</button>
+      <div class="toolbar-right">
+        <button id="copyBtn" class="btn-secondary">📋 Copy Text</button>
+        <button id="downloadBtn" class="btn-primary">⬇ Download PDF</button>
+      </div>
+    </div>
+
+    <!-- THE RESUME TEMPLATE -->
+    <div id="resumeTemplate" class="resume">
+
+      <div class="resume-header">
+        <h2 id="rName" contenteditable="true" class="editable" data-placeholder="Your Name"></h2>
+        <div class="contact-row">
+          <span id="rEmail" contenteditable="true" class="editable contact-item" data-placeholder="email@example.com"></span>
+          <span id="rPhone" contenteditable="true" class="editable contact-item" data-placeholder="Phone"></span>
+          <span id="rLinkedin" contenteditable="true" class="editable contact-item" data-placeholder="LinkedIn"></span>
+          <span id="rGithub" contenteditable="true" class="editable contact-item" data-placeholder="GitHub"></span>
+        </div>
+      </div>
+
+      <div class="resume-section" id="sectionSummary">
+        <h3 class="section-title">Summary</h3>
+        <p id="rSummary" contenteditable="true" class="editable" data-placeholder="Professional summary..."></p>
+      </div>
+
+      <div class="resume-section" id="sectionSkills">
+        <h3 class="section-title">Skills</h3>
+        <div id="rSkills" class="skills-wrap"></div>
+      </div>
+
+      <div class="resume-section" id="sectionExperience">
+        <h3 class="section-title">Experience</h3>
+        <div id="rExperience"></div>
+      </div>
+
+      <div class="resume-section" id="sectionProjects">
+        <h3 class="section-title">Projects</h3>
+        <div id="rProjects"></div>
+      </div>
+
+      <div class="resume-section" id="sectionEducation">
+        <h3 class="section-title">Education</h3>
+        <div id="rEducation"></div>
+      </div>
+
+      <div class="resume-section" id="sectionCerts">
+        <h3 class="section-title">Certifications</h3>
+        <ul id="rCerts" class="bullet-list"></ul>
+      </div>
+
+    </div><!-- end .resume -->
+  </div><!-- end #resultPanel -->
 
   <script src="script.js"></script>
 </body>

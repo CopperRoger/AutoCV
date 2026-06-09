@@ -1,56 +1,115 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
+const upload = multer({ storage: multer.memoryStorage() });
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-router.post('/', async (req, res) => {
+// POST /generate
+// Accepts either:
+//   - JSON body: { resumeText, jobDescription }
+//   - multipart/form-data: { resume (PDF file), jobDescription }
+router.post('/', upload.single('resume'), async (req, res) => {
   try {
-    const { resume, jobDescription } = req.body;
+    let resumeText = '';
 
-    const prompt = `
-You are a professional resume and cover letter writer. Given:
+    if (req.file) {
+      // PDF upload — extract text
+      const parsed = await pdfParse(req.file.buffer);
+      resumeText = parsed.text;
+    } else {
+      resumeText = req.body.resumeText || '';
+    }
 
-Resume:
-${resume}
+    const jobDescription = req.body.jobDescription || '';
 
-Job Description:
-${jobDescription}
+    if (!resumeText.trim()) {
+      return res.status(400).json({ error: 'No resume text provided.' });
+    }
 
-Return a JSON with:
-1. 3 improved, *concise*, and *impactful* resume bullet points tailored to the job. Each bullet ≤ 2 lines. Avoid filler like “showcasing” or “demonstrating”. Use strong action verbs.
-
-2. A short, personal cover letter (≤ 150 words). Avoid generic phrases like "I am writing to express...". Instead, sound authentic and motivated. Don’t repeat the resume bullets verbatim.
-
-Output format:
-{
-  "bullets": ["...", "...", "..."],
-  "coverLetter": "..."
-}
-`;
-
+    const prompt = buildPrompt(resumeText, jobDescription);
 
     const model = genAI.getGenerativeModel({
-  model: "gemini-1.5-flash", // switch from pro to flash
-  generationConfig: {
-    temperature: 0.7,
-    maxOutputTokens: 2048,
-  },
-});
+      model: 'gemini-1.5-flash',
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+      },
+    });
 
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
+    // Strip markdown fences if present
+    const jsonStr = text.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim();
+    const parsed = JSON.parse(jsonStr);
 
-console.log("Calling Gemini with prompt...");
-const result = await model.generateContent(prompt);
-
-    const response = await result.response;
-    const text = response.text();
-
-    res.json({ result: text });
+    res.json({ result: parsed });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: 'Gemini API error' });
+    console.error('Generate error:', err.message);
+    res.status(500).json({ error: 'Failed to process resume. ' + err.message });
   }
 });
+
+function buildPrompt(resumeText, jobDescription) {
+  const jdSection = jobDescription.trim()
+    ? `\nJob Description (tailor the resume toward this role):\n${jobDescription}`
+    : '\n(No job description provided — enhance the resume generally.)';
+
+  return `
+You are an expert resume writer. Your job is to:
+1. Parse the provided resume into structured sections.
+2. Enhance it — rewrite bullet points to be concise and impactful using strong action verbs, quantify achievements where possible, and write a polished professional summary.
+${jobDescription.trim() ? '3. Tailor the content to match the job description keywords and requirements.' : ''}
+
+Resume:
+${resumeText}
+${jdSection}
+
+Return ONLY a valid JSON object (no markdown, no explanation) with this exact structure:
+{
+  "name": "Full Name",
+  "email": "email@example.com",
+  "phone": "phone number or empty string",
+  "linkedin": "LinkedIn URL or empty string",
+  "github": "GitHub URL or empty string",
+  "summary": "2-3 sentence professional summary",
+  "skills": ["skill1", "skill2", "..."],
+  "experience": [
+    {
+      "company": "Company Name",
+      "role": "Job Title",
+      "duration": "Month Year – Month Year",
+      "bullets": ["bullet 1", "bullet 2", "bullet 3"]
+    }
+  ],
+  "projects": [
+    {
+      "name": "Project Name",
+      "tech": "Tech stack used",
+      "bullets": ["bullet 1", "bullet 2"]
+    }
+  ],
+  "education": [
+    {
+      "institution": "University Name",
+      "degree": "Degree and Major",
+      "duration": "Year – Year",
+      "details": "GPA, honors, or relevant coursework (optional)"
+    }
+  ],
+  "certifications": ["cert1", "cert2"]
+}
+
+Rules:
+- Keep bullets to 1 line each, starting with a past-tense action verb.
+- Quantify impact wherever the original data allows (%, numbers, scale).
+- If a field is missing from the resume, use an empty string or empty array.
+- Do NOT invent information. Only enhance what is already there.
+- Return valid JSON only. No markdown fences, no explanation text.
+`;
+}
 
 module.exports = router;

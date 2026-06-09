@@ -1,39 +1,302 @@
-document.getElementById("cvForm").addEventListener("submit", async function (e) {
-  e.preventDefault();
+// ── State ──
+let resumeData = null;
 
-  const resume = document.getElementById("resume").value;
-  const jobDescription = document.getElementById("jobDesc").value;
+// ── DOM refs ──
+const inputPanel   = document.getElementById('inputPanel');
+const loadingPanel = document.getElementById('loadingPanel');
+const resultPanel  = document.getElementById('resultPanel');
+const generateBtn  = document.getElementById('generateBtn');
+const backBtn      = document.getElementById('backBtn');
+const copyBtn      = document.getElementById('copyBtn');
+const downloadBtn  = document.getElementById('downloadBtn');
+const errorMsg     = document.getElementById('errorMsg');
+const loadingText  = document.getElementById('loadingText');
+const resumeFileInput = document.getElementById('resumeFile');
+const fileNameSpan    = document.getElementById('fileName');
 
-  const outputDiv = document.getElementById("output");
-  outputDiv.innerHTML = "⏳ Generating...";
+// Loading messages to cycle through
+const loadingMessages = [
+  'Parsing your resume...',
+  'Enhancing bullet points...',
+  'Polishing your summary...',
+  'Almost there...'
+];
+
+// ── PDF file selection ──
+resumeFileInput.addEventListener('change', () => {
+  const file = resumeFileInput.files[0];
+  fileNameSpan.textContent = file ? file.name : '';
+  if (file) document.getElementById('resumeText').value = '';
+});
+
+// ── Generate ──
+generateBtn.addEventListener('click', async () => {
+  const resumeText = document.getElementById('resumeText').value.trim();
+  const jobDesc    = document.getElementById('jobDesc').value.trim();
+  const file       = resumeFileInput.files[0];
+
+  if (!resumeText && !file) {
+    showError('Please paste your resume text or upload a PDF.');
+    return;
+  }
+
+  hideError();
+  showPanel('loading');
+  generateBtn.disabled = true;
+
+  // Cycle loading messages
+  let msgIdx = 0;
+  const msgInterval = setInterval(() => {
+    msgIdx = (msgIdx + 1) % loadingMessages.length;
+    loadingText.textContent = loadingMessages[msgIdx];
+  }, 2200);
 
   try {
-    const response = await fetch("http://localhost:5000/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ resume, jobDescription }),
-    });
+    let response;
+
+    if (file) {
+      // PDF upload via multipart
+      const formData = new FormData();
+      formData.append('resume', file);
+      if (jobDesc) formData.append('jobDescription', jobDesc);
+      response = await fetch('/generate', { method: 'POST', body: formData });
+    } else {
+      // Plain text via JSON
+      response = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resumeText, jobDescription: jobDesc }),
+      });
+    }
 
     const data = await response.json();
 
-    if (data.result) {
-      const parsed = JSON.parse(data.result.match(/```json\n([\s\S]*?)```/i)?.[1] || "{}");
-      const bullets = parsed.bullets || [];
-      const letter = parsed.coverLetter || "";
-
-      outputDiv.innerHTML = `
-        <h3>📌 Optimized Resume Bullets:</h3>
-        <ul>${bullets.map((b) => `<li>${b}</li>`).join("")}</ul>
-        <h3>✉️ Cover Letter:</h3>
-        <pre>${letter}</pre>
-      `;
-    } else {
-      outputDiv.innerHTML = "⚠️ No result received.";
+    if (!response.ok || data.error) {
+      throw new Error(data.error || 'Server error');
     }
+
+    resumeData = data.result;
+    renderResume(resumeData);
+    showPanel('result');
+
   } catch (err) {
     console.error(err);
-    outputDiv.innerHTML = "❌ Error generating output.";
+    showPanel('input');
+    showError('Something went wrong: ' + err.message);
+  } finally {
+    clearInterval(msgInterval);
+    generateBtn.disabled = false;
   }
 });
+
+// ── Back button ──
+backBtn.addEventListener('click', () => {
+  showPanel('input');
+});
+
+// ── Copy as plain text ──
+copyBtn.addEventListener('click', () => {
+  if (!resumeData) return;
+  const text = buildPlainText(resumeData);
+  navigator.clipboard.writeText(text).then(() => {
+    copyBtn.textContent = '✅ Copied!';
+    setTimeout(() => copyBtn.textContent = '📋 Copy Text', 2000);
+  });
+});
+
+// ── Download PDF ──
+downloadBtn.addEventListener('click', () => {
+  window.print();
+});
+
+// ── Render resume into template ──
+function renderResume(d) {
+  setEditable('rName',     d.name);
+  setEditable('rEmail',    d.email);
+  setEditable('rPhone',    d.phone);
+  setEditable('rLinkedin', d.linkedin);
+  setEditable('rGithub',   d.github);
+  setEditable('rSummary',  d.summary);
+
+  // Skills
+  const skillsWrap = document.getElementById('rSkills');
+  skillsWrap.innerHTML = '';
+  (d.skills || []).forEach(skill => {
+    const tag = document.createElement('span');
+    tag.className = 'skill-tag';
+    tag.contentEditable = 'true';
+    tag.textContent = skill;
+    skillsWrap.appendChild(tag);
+  });
+  toggleSection('sectionSkills', d.skills?.length > 0);
+
+  // Experience
+  const expContainer = document.getElementById('rExperience');
+  expContainer.innerHTML = '';
+  (d.experience || []).forEach(exp => {
+    expContainer.appendChild(buildEntry({
+      title: exp.role,
+      sub:   exp.company,
+      duration: exp.duration,
+      bullets: exp.bullets,
+    }));
+  });
+  toggleSection('sectionExperience', d.experience?.length > 0);
+
+  // Projects
+  const projContainer = document.getElementById('rProjects');
+  projContainer.innerHTML = '';
+  (d.projects || []).forEach(proj => {
+    projContainer.appendChild(buildEntry({
+      title: proj.name,
+      sub:   proj.tech,
+      duration: '',
+      bullets: proj.bullets,
+    }));
+  });
+  toggleSection('sectionProjects', d.projects?.length > 0);
+
+  // Education
+  const eduContainer = document.getElementById('rEducation');
+  eduContainer.innerHTML = '';
+  (d.education || []).forEach(edu => {
+    const entry = buildEntry({
+      title: edu.degree,
+      sub:   edu.institution,
+      duration: edu.duration,
+      bullets: edu.details ? [edu.details] : [],
+    });
+    eduContainer.appendChild(entry);
+  });
+  toggleSection('sectionEducation', d.education?.length > 0);
+
+  // Certifications
+  const certsList = document.getElementById('rCerts');
+  certsList.innerHTML = '';
+  (d.certifications || []).forEach(cert => {
+    const li = document.createElement('li');
+    li.contentEditable = 'true';
+    li.textContent = cert;
+    certsList.appendChild(li);
+  });
+  toggleSection('sectionCerts', d.certifications?.length > 0);
+}
+
+function buildEntry({ title, sub, duration, bullets }) {
+  const div = document.createElement('div');
+  div.className = 'entry';
+
+  const header = document.createElement('div');
+  header.className = 'entry-header';
+
+  const titleEl = document.createElement('span');
+  titleEl.className = 'entry-title';
+  titleEl.contentEditable = 'true';
+  titleEl.textContent = title || '';
+
+  const durEl = document.createElement('span');
+  durEl.className = 'entry-duration';
+  durEl.contentEditable = 'true';
+  durEl.textContent = duration || '';
+
+  header.appendChild(titleEl);
+  header.appendChild(durEl);
+
+  const subEl = document.createElement('div');
+  subEl.className = 'entry-sub';
+  subEl.contentEditable = 'true';
+  subEl.textContent = sub || '';
+
+  const ul = document.createElement('ul');
+  ul.className = 'bullet-list';
+  (bullets || []).forEach(b => {
+    const li = document.createElement('li');
+    li.contentEditable = 'true';
+    li.textContent = b;
+    ul.appendChild(li);
+  });
+
+  div.appendChild(header);
+  div.appendChild(subEl);
+  div.appendChild(ul);
+  return div;
+}
+
+function setEditable(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value || '';
+}
+
+function toggleSection(id, show) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = show ? '' : 'none';
+}
+
+// ── Build plain text copy ──
+function buildPlainText(d) {
+  const lines = [];
+  if (d.name)     lines.push(d.name);
+  const contact = [d.email, d.phone, d.linkedin, d.github].filter(Boolean).join(' | ');
+  if (contact)    lines.push(contact);
+  lines.push('');
+
+  if (d.summary)  { lines.push('SUMMARY'); lines.push(d.summary); lines.push(''); }
+
+  if (d.skills?.length) {
+    lines.push('SKILLS');
+    lines.push(d.skills.join(', '));
+    lines.push('');
+  }
+
+  if (d.experience?.length) {
+    lines.push('EXPERIENCE');
+    d.experience.forEach(e => {
+      lines.push(`${e.role} — ${e.company}  (${e.duration})`);
+      (e.bullets || []).forEach(b => lines.push('  • ' + b));
+    });
+    lines.push('');
+  }
+
+  if (d.projects?.length) {
+    lines.push('PROJECTS');
+    d.projects.forEach(p => {
+      lines.push(`${p.name}  [${p.tech}]`);
+      (p.bullets || []).forEach(b => lines.push('  • ' + b));
+    });
+    lines.push('');
+  }
+
+  if (d.education?.length) {
+    lines.push('EDUCATION');
+    d.education.forEach(e => {
+      lines.push(`${e.degree} — ${e.institution}  (${e.duration})`);
+      if (e.details) lines.push('  ' + e.details);
+    });
+    lines.push('');
+  }
+
+  if (d.certifications?.length) {
+    lines.push('CERTIFICATIONS');
+    d.certifications.forEach(c => lines.push('  • ' + c));
+  }
+
+  return lines.join('\n');
+}
+
+// ── Panel helpers ──
+function showPanel(name) {
+  inputPanel.classList.add('hidden');
+  loadingPanel.classList.add('hidden');
+  resultPanel.classList.add('hidden');
+  if (name === 'input')   inputPanel.classList.remove('hidden');
+  if (name === 'loading') loadingPanel.classList.remove('hidden');
+  if (name === 'result')  resultPanel.classList.remove('hidden');
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.classList.remove('hidden');
+}
+function hideError() {
+  errorMsg.classList.add('hidden');
+}
